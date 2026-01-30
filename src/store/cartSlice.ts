@@ -4,11 +4,13 @@ import { CartItem } from '@/lib/db';
 interface CartState {
     items: CartItem[];
     isOpen: boolean;
+    userId: string | null;
 }
 
 const initialState: CartState = {
     items: [],
     isOpen: false,
+    userId: null,
 };
 
 export const cartSlice = createSlice({
@@ -37,9 +39,12 @@ export const cartSlice = createSlice({
         },
         clearCart: (state) => {
             state.items = [];
+        },
+        setUserId: (state, action: PayloadAction<string>) => {
+            state.userId = action.payload;
         }
     },
 });
 
-export const { toggleCart, addItem, removeItem, updateQuantity, clearCart } = cartSlice.actions;
+export const { toggleCart, addItem, removeItem, updateQuantity, clearCart, setUserId } = cartSlice.actions;
 export default cartSlice.reducer;
