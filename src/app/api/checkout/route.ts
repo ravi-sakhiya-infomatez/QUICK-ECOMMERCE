@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
             userId,
             items: [...userCart],
             totalAmount: finalAmount,
+            discountAmount: discount,
             discountCode: appliedCode,
             createdAt: new Date(),
         };

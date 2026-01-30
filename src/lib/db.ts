@@ -16,6 +16,7 @@ export interface Order {
     userId: string;
     items: CartItem[];
     totalAmount: number;
+    discountAmount: number;
     discountCode?: string;
     createdAt: Date;
 }
