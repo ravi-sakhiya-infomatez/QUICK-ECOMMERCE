@@ -51,6 +51,15 @@ export const api = createApi({
             orderCount: number;
         }, void>({
             query: () => 'admin/stats',
+            transformResponse: (response: {
+                success: boolean; stats: {
+                    totalItemsPurchased: number;
+                    totalRevenue: number;
+                    totalDiscountGiven: number;
+                    discountCodes: { code: string; isUsed: boolean; value: number; discountType: string }[];
+                    orderCount: number;
+                }
+            }) => response.stats,
             providesTags: ['Stats'],
         }),
         generateDiscountCode: builder.mutation<{ success: boolean; code?: string; message: string }, void>({
