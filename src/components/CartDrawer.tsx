@@ -8,6 +8,7 @@ import { Loader2, Minus, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useGetProductsQuery } from '@/store/services/api';
 import Image from 'next/image';
+import { calculateDiscount } from '@/lib/discount';
 
 // Simple Sheet implementation for now since we didn't add it to UI library yet
 // Actually, let's create a SlideOver manually or use a simple fixed div for speed as "Sheet" suggests shadcn/ui component
@@ -18,7 +19,7 @@ export default function CartDrawer() {
     const { isOpen, userId, items: localItems } = useAppSelector((state) => state.cart);
 
     // Fetch cart from server to ensure sync, but rely on localItems for UI speed
-    const { data: _cartData, refetch } = useGetCartQuery(userId || '', { skip: !userId });
+    const { refetch } = useGetCartQuery(userId || '', { skip: !userId });
     const [validateCode, { isLoading: isValidating }] = useValidateCodeMutation();
     const { discountCode, discountValue, discountType } = useAppSelector((state) => state.cart);
 
@@ -32,17 +33,14 @@ export default function CartDrawer() {
 
     const cartItems = localItems; // Use local Redux state for immediate feedback using optimistic updates
 
+    // ... inside the component ...
+
     const totalAmount = cartItems.reduce((acc, item) => {
         const product = productData?.products.find(p => p.id === item.productId);
         return acc + (product?.price || 0) * item.quantity;
     }, 0);
 
-    let finalTotal = totalAmount;
-    if (discountType === 'PERCENTAGE' && discountValue) {
-        finalTotal = totalAmount - (totalAmount * discountValue / 100);
-    } else if (discountType === 'FIXED' && discountValue) {
-        finalTotal = Math.max(0, totalAmount - discountValue);
-    }
+    const finalTotal = calculateDiscount(totalAmount, discountType, discountValue);
 
     const handleApplyCoupon = async () => {
         if (!promoCode) return;
@@ -79,7 +77,7 @@ export default function CartDrawer() {
         try {
             await addToCart({ userId, productId, quantity: delta }).unwrap();
             refetch();
-        } catch (_) {
+        } catch {
             console.error("Failed to update cart");
             // Revert logic would go here
         }

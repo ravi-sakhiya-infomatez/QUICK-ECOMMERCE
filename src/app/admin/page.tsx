@@ -32,7 +32,7 @@ export default function AdminPage() {
             } else {
                 alert(`Failed: ${res.message}`);
             }
-        } catch (err) {
+        } catch {
             alert('Error generating code');
         }
     };
