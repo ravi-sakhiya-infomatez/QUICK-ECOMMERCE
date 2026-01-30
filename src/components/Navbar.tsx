@@ -18,9 +18,8 @@ export default function Navbar() {
 
     useEffect(() => {
         // Just to trigger a re-render on mount
-        setMounted(true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect
+    }, [dispatch]);
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

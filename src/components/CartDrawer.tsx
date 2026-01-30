@@ -1,8 +1,8 @@
 'use client';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { toggleCart, removeItem, updateQuantity } from '@/store/cartSlice';
-import { useGetCartQuery, useAddToCartMutation } from '@/store/services/api';
+import { toggleCart, removeItem, updateQuantity, applyDiscount } from '@/store/cartSlice';
+import { useGetCartQuery, useAddToCartMutation, useValidateCodeMutation } from '@/store/services/api';
 import { Button } from '@/components/ui/button';
 import { Loader2, Minus, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -19,13 +19,16 @@ export default function CartDrawer() {
 
     // Fetch cart from server to ensure sync, but rely on localItems for UI speed
     const { data: _cartData, refetch } = useGetCartQuery(userId || '', { skip: !userId });
-    const { data: productData } = useGetProductsQuery();
-    const [addToCart] = useAddToCartMutation();
+    const [validateCode, { isLoading: isValidating }] = useValidateCodeMutation();
+    const { discountCode, discountValue, discountType } = useAppSelector((state) => state.cart);
 
     // Sync server cart to local if needed, OR just use local as truth for UI
     // Real-world: merge strategies. Here: we trust local + background sync.
+    const { data: productData } = useGetProductsQuery();
+    const [addToCart] = useAddToCartMutation();
 
     const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [promoCode, setPromoCode] = useState('');
 
     const cartItems = localItems; // Use local Redux state for immediate feedback using optimistic updates
 
@@ -33,6 +36,30 @@ export default function CartDrawer() {
         const product = productData?.products.find(p => p.id === item.productId);
         return acc + (product?.price || 0) * item.quantity;
     }, 0);
+
+    let finalTotal = totalAmount;
+    if (discountType === 'PERCENTAGE' && discountValue) {
+        finalTotal = totalAmount - (totalAmount * discountValue / 100);
+    } else if (discountType === 'FIXED' && discountValue) {
+        finalTotal = Math.max(0, totalAmount - discountValue);
+    }
+
+    const handleApplyCoupon = async () => {
+        if (!promoCode) return;
+        try {
+            const res = await validateCode({ code: promoCode }).unwrap();
+            if (res.success) {
+                dispatch(applyDiscount({
+                    code: promoCode,
+                    type: res.discountType,
+                    value: res.value
+                }));
+                // alert('Coupon Applied!');
+            }
+        } catch {
+            alert('Invalid Code');
+        }
+    };
 
     const handleUpdateQty = async (productId: string, delta: number) => {
         if (!userId) return;
@@ -65,7 +92,7 @@ export default function CartDrawer() {
             const res = await fetch('/api/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId })
+                body: JSON.stringify({ userId, discountCode })
             });
             const data = await res.json();
             if (data.success) {
@@ -160,9 +187,38 @@ export default function CartDrawer() {
                 </div>
 
                 <div className="border-t p-4 bg-muted/20">
-                    <div className="flex justify-between items-center mb-4">
-                        <span className="font-medium">Total</span>
-                        <span className="text-xl font-bold">${totalAmount.toFixed(2)}</span>
+                    <div className="mb-4 space-y-2">
+                        <div className="flex gap-2">
+                            <input
+                                placeholder="Discount Code"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={promoCode}
+                                onChange={(e) => setPromoCode(e.target.value)}
+                            />
+                            <Button onClick={handleApplyCoupon} disabled={!promoCode || isValidating} variant="outline">
+                                {isValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                            </Button>
+                        </div>
+                        {discountCode && (
+                            <div className="text-sm text-green-600 font-medium">
+                                Code &quot;{discountCode}&quot; applied!
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium">Subtotal</span>
+                        <span>${totalAmount.toFixed(2)}</span>
+                    </div>
+                    {finalTotal < totalAmount && (
+                        <div className="flex justify-between items-center mb-2 text-green-600">
+                            <span className="font-medium">Discount</span>
+                            <span>-${(totalAmount - finalTotal).toFixed(2)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center mb-4 text-xl font-bold">
+                        <span>Total</span>
+                        <span>${finalTotal.toFixed(2)}</span>
                     </div>
                     <Button className="w-full" size="lg" disabled={cartItems.length === 0 || checkoutLoading} onClick={handleCheckout}>
                         {checkoutLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -1,3 +1,4 @@
+
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { CartItem } from '@/lib/db';
 
@@ -5,12 +6,18 @@ interface CartState {
     items: CartItem[];
     isOpen: boolean;
     userId: string | null;
+    discountCode?: string;
+    discountValue?: number;
+    discountType?: 'PERCENTAGE' | 'FIXED';
 }
 
 const initialState: CartState = {
     items: [],
     isOpen: false,
     userId: null,
+    discountCode: undefined,
+    discountValue: undefined,
+    discountType: undefined,
 };
 
 export const cartSlice = createSlice({
@@ -42,9 +49,14 @@ export const cartSlice = createSlice({
         },
         setUserId: (state, action: PayloadAction<string>) => {
             state.userId = action.payload;
+        },
+        applyDiscount: (state, action: PayloadAction<{ code: string; type: 'PERCENTAGE' | 'FIXED'; value: number }>) => {
+            state.discountCode = action.payload.code;
+            state.discountType = action.payload.type;
+            state.discountValue = action.payload.value;
         }
     },
 });
 
-export const { toggleCart, addItem, removeItem, updateQuantity, clearCart, setUserId } = cartSlice.actions;
+export const { toggleCart, addItem, removeItem, updateQuantity, clearCart, setUserId, applyDiscount } = cartSlice.actions;
 export default cartSlice.reducer;

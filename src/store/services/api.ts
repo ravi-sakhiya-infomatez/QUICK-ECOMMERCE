@@ -36,6 +36,13 @@ export const api = createApi({
             }),
             invalidatesTags: ['Cart', 'Order'],
         }),
+        validateCode: builder.mutation<{ success: boolean; discountType: 'PERCENTAGE' | 'FIXED'; value: number }, { code: string }>({
+            query: (body) => ({
+                url: 'validate-code',
+                method: 'POST',
+                body,
+            }),
+        }),
     }),
 });
 
@@ -45,5 +52,6 @@ export const {
     useGetProductsQuery,
     useGetCartQuery,
     useAddToCartMutation,
-    useCheckoutMutation
+    useCheckoutMutation,
+    useValidateCodeMutation
 } = api;
