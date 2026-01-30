@@ -10,7 +10,7 @@ export const api = createApi({
             return headers;
         },
     }),
-    tagTypes: ['Products', 'Cart', 'Order'],
+    tagTypes: ['Products', 'Cart', 'Order', 'Stats'],
     endpoints: (builder) => ({
         getProducts: builder.query<{ success: boolean; products: Product[] }, void>({
             query: () => 'products',
@@ -34,7 +34,7 @@ export const api = createApi({
                 method: 'POST',
                 body,
             }),
-            invalidatesTags: ['Cart', 'Order'],
+            invalidatesTags: ['Cart', 'Order', 'Stats'],
         }),
         validateCode: builder.mutation<{ success: boolean; discountType: 'PERCENTAGE' | 'FIXED'; value: number }, { code: string }>({
             query: (body) => ({
@@ -42,6 +42,23 @@ export const api = createApi({
                 method: 'POST',
                 body,
             }),
+        }),
+        getAdminStats: builder.query<{
+            totalItemsPurchased: number;
+            totalRevenue: number;
+            totalDiscountGiven: number;
+            discountCodes: { code: string; isUsed: boolean; value: number; discountType: string }[];
+            orderCount: number;
+        }, void>({
+            query: () => 'admin/stats',
+            providesTags: ['Stats'],
+        }),
+        generateDiscountCode: builder.mutation<{ success: boolean; code?: string; message: string }, void>({
+            query: () => ({
+                url: 'admin/discount',
+                method: 'POST',
+            }),
+            invalidatesTags: ['Stats'],
         }),
     }),
 });
@@ -53,5 +70,7 @@ export const {
     useGetCartQuery,
     useAddToCartMutation,
     useCheckoutMutation,
-    useValidateCodeMutation
+    useValidateCodeMutation,
+    useGetAdminStatsQuery,
+    useGenerateDiscountCodeMutation
 } = api;
