@@ -1,11 +1,12 @@
 'use client';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { toggleCart, removeItem, updateQuantity, applyDiscount } from '@/store/cartSlice';
+import { toggleCart, removeItem, updateQuantity, applyDiscount, clearCart } from '@/store/cartSlice';
+import { addToast } from '@/store/toastSlice';
 import { useGetCartQuery, useAddToCartMutation, useValidateCodeMutation } from '@/store/services/api';
 import { Button } from '@/components/ui/button';
-import { Loader2, Minus, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronRight, Loader2, Minus, Plus, ShoppingCart, Tag, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { useGetProductsQuery } from '@/store/services/api';
 import Image from 'next/image';
 import { calculateDiscount } from '@/lib/discount';
@@ -14,6 +15,11 @@ import { calculateDiscount } from '@/lib/discount';
 // Actually, let's create a SlideOver manually or use a simple fixed div for speed as "Sheet" suggests shadcn/ui component
 // typically needs more setup. A standard fixed overlay is easier.
 
+/**
+ * The shopping cart drawer component.
+ * Manages item display, quantity updates, discount code application, and the checkout process.
+ * Synchronizes local Redux state with the server-side cart.
+ */
 export default function CartDrawer() {
     const dispatch = useAppDispatch();
     const { isOpen, userId, items: localItems } = useAppSelector((state) => state.cart);
@@ -47,15 +53,26 @@ export default function CartDrawer() {
         try {
             const res = await validateCode({ code: promoCode }).unwrap();
             if (res.success) {
-                dispatch(applyDiscount({
-                    code: promoCode,
-                    type: res.discountType,
-                    value: res.value
+                dispatch(applyDiscount({ code: promoCode, type: res.discountType, value: res.value }));
+                dispatch(addToast({
+                    type: 'success',
+                    title: 'Matrix Verified',
+                    message: `Discount policy "${promoCode}" successfully decrypted.`,
                 }));
-                // alert('Coupon Applied!');
+            } else {
+                dispatch(addToast({
+                    type: 'error',
+                    title: 'Invalid Matrix',
+                    message: 'The provided promo code does not exist in our active archives.',
+                }));
             }
-        } catch {
-            alert('Invalid Code');
+        } catch (error) {
+            console.error('Validation error:', error);
+            dispatch(addToast({
+                type: 'error',
+                title: 'Link Interrupted',
+                message: 'A disturbance in the synchronization prevented code validation.',
+            }));
         }
     };
 
@@ -92,15 +109,44 @@ export default function CartDrawer() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, discountCode })
             });
-            const data = await res.json();
+            const data: { success: boolean; message: string; rewardCode?: string } = await res.json();
             if (data.success) {
-                alert(`Order Placed! ${data.rewardCode ? `\nYour Reward Code: ${data.rewardCode}` : ''}`);
-                window.location.reload(); // Simple reset
+                if (data.rewardCode) {
+                    dispatch(addToast({
+                        type: 'reward',
+                        title: 'Golden Reward Unlocked!',
+                        message: `Stunning! Your order triggered a premium reward. Use code ${data.rewardCode} on your next visit!`,
+                        duration: 8000
+                    }));
+                } else {
+                    dispatch(addToast({
+                        type: 'success',
+                        title: 'Order Synchronized',
+                        message: 'Your premium selection is now being processed. Check your email for confirmation.',
+                    }));
+                }
+                dispatch(clearCart());
+                dispatch(toggleCart());
+
+                // Allow user to see the toast before reload if they want, 
+                // but since we clear state and close drawer, usually they stay on page.
+                // If we want to reload, we should delay it.
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
             } else {
-                alert('Checkout failed: ' + data.message);
+                dispatch(addToast({
+                    type: 'error',
+                    title: 'Sync Interrupted',
+                    message: data.message || 'We encountered a momentary disturbance in the digital flow. Please try again.',
+                }));
             }
         } catch {
-            alert('Checkout error');
+            dispatch(addToast({
+                type: 'error',
+                title: 'Checkout Error',
+                message: 'An unexpected error occurred during checkout. Please try again.',
+            }));
         } finally {
             setCheckoutLoading(false);
             dispatch(toggleCart());
@@ -113,23 +159,30 @@ export default function CartDrawer() {
         <div className="fixed inset-0 z-50 flex justify-end">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+                className="absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity"
                 onClick={() => dispatch(toggleCart())}
             />
 
             {/* Drawer */}
-            <div className="relative w-full max-w-md bg-background shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
-                <div className="p-4 border-b flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Shopping Cart</h2>
-                    <Button variant="ghost" size="icon" onClick={() => dispatch(toggleCart())}>
+            <div className="relative w-full max-w-md glass border-l border-white/10 shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-500">
+                <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
+                    <div>
+                        <h2 className="text-xl font-bold tracking-tight">Your Collections</h2>
+                        <p className="text-xs text-muted-foreground uppercase tracking-widest mt-0.5">Premium Curation</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10" onClick={() => dispatch(toggleCart())}>
                         <X className="h-5 w-5" />
                     </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {cartItems.length === 0 ? (
-                        <div className="text-center text-muted-foreground py-10">
-                            Your cart is empty.
+                        <div className="text-center py-20">
+                            <div className="bg-muted/30 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                                <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
+                            </div>
+                            <p className="text-muted-foreground font-medium">Your cart is feeling light.</p>
+                            <Button variant="link" onClick={() => dispatch(toggleCart())} className="mt-2 text-primary">Explorer Store →</Button>
                         </div>
                     ) : (
                         cartItems.map(item => {
@@ -137,42 +190,46 @@ export default function CartDrawer() {
                             if (!product) return null;
 
                             return (
-                                <div key={item.productId} className="flex gap-4 border-b pb-4 last:border-0">
-                                    <div className="h-20 w-20 relative rounded-md overflow-hidden bg-muted shrink-0">
+                                <div key={item.productId} className="flex gap-4 p-3 rounded-2xl bg-white/5 border border-white/5 group hover:border-primary/20 transition-colors">
+                                    <div className="h-24 w-24 relative rounded-xl overflow-hidden bg-muted shrink-0 shadow-inner">
                                         <Image
                                             src={product.imageUrl}
                                             alt={product.name}
                                             fill
-                                            className="object-cover"
+                                            className="object-cover group-hover:scale-105 transition-transform duration-500"
                                         />
                                     </div>
-                                    <div className="flex-1">
-                                        <h3 className="font-medium line-clamp-1">{product.name}</h3>
-                                        <p className="text-sm text-muted-foreground">${product.price.toFixed(2)}</p>
+                                    <div className="flex-1 flex flex-col justify-between py-1">
+                                        <div>
+                                            <h3 className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors">{product.name}</h3>
+                                            <p className="text-xs text-muted-foreground font-mono mt-1">${product.price.toFixed(2)}</p>
+                                        </div>
 
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <Button
-                                                variant="outline"
-                                                size="icon"
-                                                className="h-8 w-8"
-                                                onClick={() => handleUpdateQty(item.productId, -1)}
-                                            >
-                                                <Minus className="h-3 w-3" />
-                                            </Button>
-                                            <span className="w-8 text-center text-sm">{item.quantity}</span>
-                                            <Button
-                                                variant="outline"
-                                                size="icon"
-                                                className="h-8 w-8"
-                                                onClick={() => handleUpdateQty(item.productId, 1)}
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                            </Button>
+                                        <div className="flex items-center justify-between mt-auto">
+                                            <div className="flex items-center bg-background/50 rounded-lg p-1 border border-white/5">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 rounded-md hover:bg-white/10"
+                                                    onClick={() => handleUpdateQty(item.productId, -1)}
+                                                >
+                                                    <Minus className="h-3 w-3" />
+                                                </Button>
+                                                <span className="w-8 text-center text-xs font-bold">{item.quantity}</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 rounded-md hover:bg-white/10"
+                                                    onClick={() => handleUpdateQty(item.productId, 1)}
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                </Button>
+                                            </div>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 ml-auto text-destructive hover:text-destructive"
-                                                onClick={() => handleUpdateQty(item.productId, -item.quantity)} // Remove all
+                                                className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
+                                                onClick={() => handleUpdateQty(item.productId, -item.quantity)}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -184,44 +241,61 @@ export default function CartDrawer() {
                     )}
                 </div>
 
-                <div className="border-t p-4 bg-muted/20">
-                    <div className="mb-4 space-y-2">
+                <div className="border-t border-white/10 p-6 bg-white/5 space-y-4">
+                    <div className="space-y-3">
                         <div className="flex gap-2">
                             <input
-                                placeholder="Discount Code"
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Enter PROMO Code"
+                                className="flex h-11 w-full rounded-xl border border-white/10 bg-background/50 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground/50"
                                 value={promoCode}
                                 onChange={(e) => setPromoCode(e.target.value)}
                             />
-                            <Button onClick={handleApplyCoupon} disabled={!promoCode || isValidating} variant="outline">
+                            <Button
+                                onClick={handleApplyCoupon}
+                                disabled={!promoCode || isValidating}
+                                className="h-11 px-6 rounded-xl hover:shadow-lg active:scale-95 transition-all"
+                            >
                                 {isValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
                             </Button>
                         </div>
                         {discountCode && (
-                            <div className="text-sm text-green-600 font-medium">
-                                Code &quot;{discountCode}&quot; applied!
+                            <div className="flex items-center gap-2 text-xs font-bold text-green-400 bg-green-400/10 px-3 py-2 rounded-lg border border-green-400/20">
+                                <Tag className="h-3 w-3" />
+                                Code &quot;{discountCode}&quot; successfully applied!
                             </div>
                         )}
                     </div>
 
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">Subtotal</span>
-                        <span>${totalAmount.toFixed(2)}</span>
-                    </div>
-                    {finalTotal < totalAmount && (
-                        <div className="flex justify-between items-center mb-2 text-green-600">
-                            <span className="font-medium">Discount</span>
-                            <span>-${(totalAmount - finalTotal).toFixed(2)}</span>
+                    <div className="space-y-2 pt-2">
+                        <div className="flex justify-between items-center text-sm font-medium text-muted-foreground">
+                            <span>Subtotal</span>
+                            <span className="text-foreground">${totalAmount.toFixed(2)}</span>
                         </div>
-                    )}
-                    <div className="flex justify-between items-center mb-4 text-xl font-bold">
-                        <span>Total</span>
-                        <span>${finalTotal.toFixed(2)}</span>
+                        {finalTotal < totalAmount && (
+                            <div className="flex justify-between items-center text-sm font-bold text-green-400">
+                                <span className="flex items-center gap-1">Exclusive Discount <Tag className="h-3 w-3" /></span>
+                                <span>-${(totalAmount - finalTotal).toFixed(2)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center pt-2 mt-2 border-t border-white/5">
+                            <span className="text-lg font-bold">Estimated Total</span>
+                            <span className="text-2xl font-black text-primary tracking-tight">${finalTotal.toFixed(2)}</span>
+                        </div>
                     </div>
-                    <Button className="w-full" size="lg" disabled={cartItems.length === 0 || checkoutLoading} onClick={handleCheckout}>
-                        {checkoutLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Checkout
+
+                    <Button
+                        className="w-full h-14 text-lg font-bold rounded-2xl shadow-xl hover:shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90"
+                        size="lg"
+                        disabled={cartItems.length === 0 || checkoutLoading}
+                        onClick={handleCheckout}
+                    >
+                        {checkoutLoading ? (
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : (
+                            <span className="flex items-center gap-2">Complete Purchase <ChevronRight className="h-5 w-5" /> </span>
+                        )}
                     </Button>
+                    <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest font-medium opacity-50">Secure Encryption & Guaranteed Delivery</p>
                 </div>
             </div>
         </div>

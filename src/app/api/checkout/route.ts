@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { store } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Handles the checkout process.
+ * Calculates total, validates discount code, creates order, and checks for Nth order rewards.
+ * 
+ * @param req The NextRequest object containing userId and optional discountCode.
+ * @returns JSON response with order details and any generated reward code.
+ */
 export async function POST(req: NextRequest) {
     try {
         const { userId, discountCode } = await req.json();

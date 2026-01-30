@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { Product, CartItem } from '@/lib/db';
+import { Product, CartItem, Order } from '@/lib/db';
 
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
@@ -49,6 +49,7 @@ export const api = createApi({
             totalDiscountGiven: number;
             discountCodes: { code: string; isUsed: boolean; value: number; discountType: string }[];
             orderCount: number;
+            orders: Order[];
         }, void>({
             query: () => 'admin/stats',
             transformResponse: (response: {
@@ -58,6 +59,7 @@ export const api = createApi({
                     totalDiscountGiven: number;
                     discountCodes: { code: string; isUsed: boolean; value: number; discountType: string }[];
                     orderCount: number;
+                    orders: Order[];
                 }
             }) => response.stats,
             providesTags: ['Stats'],

@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { cartSlice } from './cartSlice';
 import { adminSlice } from './adminSlice';
+import toastReducer from './toastSlice';
 import { api } from './services/api';
 
 export const makeStore = () => {
@@ -8,6 +9,7 @@ export const makeStore = () => {
         reducer: {
             cart: cartSlice.reducer,
             admin: adminSlice.reducer,
+            toast: toastReducer,
             [api.reducerPath]: api.reducer,
         },
         middleware: (getDefaultMiddleware) =>
